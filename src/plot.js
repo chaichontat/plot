@@ -313,7 +313,7 @@ export function plot(options = {}) {
       .text(`${w.toLocaleString("en-US")} warning${w === 1 ? "" : "s"}. Please check the console.`);
   }
 
-  return figure;
+  return {figure, selection, scales, axes};
 }
 
 export class Mark {
