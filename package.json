@@ -32,7 +32,7 @@
     "test:mocha": "mkdir -p test/output && mocha --conditions=mocha 'test/**/*-test.*' 'test/plot.js'",
     "test:lint": "eslint src test",
     "test:typecheck": "tsc --noEmit",
-    "prepublishOnly": "rm -rf build dist && tsc && tsx scripts/readme-to-jsdoc.ts && rollup -c",
+    "build": "rm -rf build dist && tsc && tsx scripts/readme-to-jsdoc.ts && rollup -c",
     "postpublish": "git push && git push --tags",
     "dev": "vite"
   },
