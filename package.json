@@ -33,6 +33,7 @@
     "test:lint": "eslint src test",
     "test:typecheck": "tsc --noEmit",
     "build": "rm -rf build dist && tsc && tsx scripts/readme-to-jsdoc.ts && rollup -c",
+    "prepare": "npm run build",
     "postpublish": "git push && git push --tags",
     "dev": "vite"
   },
