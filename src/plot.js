@@ -167,7 +167,7 @@ export function plot(options = {}) {
 
   const {width, height} = dimensions;
 
-  const svg = create("svg", context)
+  const selection = (options.svg ? select(options.svg) : create("svg", context))
     .attr("class", className)
     .attr("fill", "currentColor")
     .attr("font-family", "system-ui, sans-serif")
@@ -193,8 +193,9 @@ export function plot(options = {}) {
         }
       `)
     )
-    .call(applyInlineStyles, style)
-    .node();
+    .call(applyInlineStyles, style);
+
+  const svg = selection.node();
 
   // When faceting, render axes for fx and fy instead of x and y.
   const axisY = axes[facets !== undefined && fy ? "fy" : "y"];
