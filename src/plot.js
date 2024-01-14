@@ -20,7 +20,7 @@ import {initializer} from "./transforms/basic.js";
 import {consumeWarnings, warn} from "./warnings.js";
 
 export function plot(options = {}) {
-  const {facet, style, title, subtitle, caption, ariaLabel, ariaDescription, svg} = options;
+  let {facet, style, title, subtitle, caption, ariaLabel, ariaDescription, svg} = options;
 
   // className for inline styles
   const className = maybeClassName(options.className);
