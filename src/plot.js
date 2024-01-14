@@ -20,7 +20,7 @@ import {initializer} from "./transforms/basic.js";
 import {consumeWarnings, warn} from "./warnings.js";
 
 export function plot(options = {}) {
-  const {facet, style, title, subtitle, caption, ariaLabel, ariaDescription} = options;
+  const {facet, style, title, subtitle, caption, ariaLabel, ariaDescription, svg} = options;
 
   // className for inline styles
   const className = maybeClassName(options.className);
@@ -153,7 +153,7 @@ export function plot(options = {}) {
   // Initialize the context.
   const context = createContext(options);
   const document = context.document;
-  const svg = creator("svg").call(document.documentElement);
+  svg = svg ?? creator("svg").call(document.documentElement);
   let figure = svg; // replaced with the figure element, if any
   context.ownerSVGElement = svg;
   context.className = className;
