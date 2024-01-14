@@ -1,13 +1,13 @@
-import {contourDensity, create, geoPath} from "d3";
-import {valueObject} from "../channel.js";
-import {isTypedArray, maybeTuple, maybeZ} from "../options.js";
-import {Mark} from "../plot.js";
-import {coerceNumbers} from "../scales.js";
+import {contourDensity, geoPath} from "d3";
+import {create} from "../context.js";
+import {Mark} from "../mark.js";
+import {TypedArray, coerceNumbers, maybeTuple, maybeZ} from "../options.js";
+import {applyPosition} from "../projection.js";
 import {
-  applyFrameAnchor,
-  applyDirectStyles,
-  applyIndirectStyles,
   applyChannelStyles,
+  applyDirectStyles,
+  applyFrameAnchor,
+  applyIndirectStyles,
   applyTransform,
   groupZ
 } from "../style.js";
@@ -50,7 +50,7 @@ export class Density extends Mark {
     const {contours} = channels;
     const path = geoPath();
     return create("svg:g", context)
-      .call(applyIndirectStyles, this, scales, dimensions, context)
+      .call(applyIndirectStyles, this, dimensions, context)
       .call(applyTransform, this, {})
       .call((g) =>
         g
@@ -66,11 +66,9 @@ export class Density extends Mark {
   }
 }
 
-/** @jsdoc density */
-export function density(data, options = {}) {
-  let {x, y, ...remainingOptions} = options;
+export function density(data, {x, y, ...options} = {}) {
   [x, y] = maybeTuple(x, y);
-  return new Density(data, {...remainingOptions, x, y});
+  return new Density(data, {...options, x, y});
 }
 
 const dropChannels = new Set(["x", "y", "z", "weight"]);
@@ -92,20 +90,8 @@ function densityInitializer(options, fillDensity, strokeDensity) {
     const [cx, cy] = applyFrameAnchor(this, dimensions);
     const {width, height} = dimensions;
 
-    // Extract the scaled (or projected!) values for the x and y channels.
-    let {x: X, y: Y} = valueObject(
-      {
-        ...(channels.x && {x: channels.x}),
-        ...(channels.y && {y: channels.y})
-      },
-      scales,
-      context
-    );
-
-    // Coerce the x and y channels to numbers (so that null is properly treated
-    // as an undefined value rather than being coerced to zero).
-    if (X) X = coerceNumbers(X);
-    if (Y) Y = coerceNumbers(Y);
+    // Get the (either scaled or projected) xy channels.
+    const {x: X, y: Y} = applyPosition(channels, scales, context);
 
     // Group any of the input channels according to the first index associated
     // with each z-series or facet. Drop any channels not be needed for
@@ -141,7 +127,7 @@ function densityInitializer(options, fillDensity, strokeDensity) {
     // If explicit thresholds were not specified, find the maximum density of
     // all grids and use this to compute thresholds.
     let T = thresholds;
-    if (!isTypedArray(T)) {
+    if (!(T instanceof TypedArray)) {
       let maxValue = 0;
       for (const facetContours of facetsContours) {
         for (const [, contour] of facetContours) {

@@ -1,9 +1,8 @@
-import {valueObject} from "../channel.js";
-import {coerceNumbers} from "../scales.js";
-import {sqrt3} from "../symbols.js";
-import {isNoneish, number, valueof} from "../options.js";
+import {map, number, valueof} from "../options.js";
+import {applyPosition} from "../projection.js";
+import {sqrt3} from "../symbol.js";
 import {initializer} from "./basic.js";
-import {hasOutput, maybeGroup, maybeOutputs, maybeSubgroup} from "./group.js";
+import {hasOutput, maybeGroup, maybeGroupOutputs, maybeSubgroup} from "./group.js";
 
 // We don’t want the hexagons to align with the edges of the plot frame, as that
 // would cause extreme x-values (the upper bound of the default x-scale domain)
@@ -13,35 +12,31 @@ import {hasOutput, maybeGroup, maybeOutputs, maybeSubgroup} from "./group.js";
 export const ox = 0.5,
   oy = 0;
 
-/** @jsdoc hexbin */
 export function hexbin(outputs = {fill: "count"}, {binWidth, ...options} = {}) {
-  // TODO filter e.g. to show empty hexbins?
-  // TODO disallow x, x1, x2, y, y1, y2 reducers?
-  binWidth = binWidth === undefined ? 20 : number(binWidth);
-  outputs = maybeOutputs(outputs, options);
+  const {z} = options;
 
-  // A fill output means a fill channel, and hence the stroke should default to
-  // none (assuming a mark that defaults to fill and no stroke, such as dot).
-  // Note that it’s safe to mutate options here because we just created it with
-  // the rest operator above.
-  const {z, fill, stroke} = options;
-  if (stroke === undefined && isNoneish(fill) && hasOutput(outputs, "fill")) options.stroke = "none";
+  // TODO filter e.g. to show empty hexbins?
+  binWidth = binWidth === undefined ? 20 : number(binWidth);
+  outputs = maybeGroupOutputs(outputs, options);
+
+  // A fill output means a fill channel; declaring the channel here instead of
+  // waiting for the initializer allows the mark constructor to determine that
+  // the stroke should default to none (assuming a mark that defaults to fill
+  // and no stroke, such as dot). Note that it’s safe to mutate options here
+  // because we just created it with the rest operator above.
+  if (hasOutput(outputs, "fill")) options.channels = {...options.channels, fill: {value: []}};
 
   // Populate default values for the r and symbol options, as appropriate.
   if (options.symbol === undefined) options.symbol = "hexagon";
   if (options.r === undefined && !hasOutput(outputs, "r")) options.r = binWidth / 2;
 
-  return initializer(options, (data, facets, {x: X, y: Y, z: Z, fill: F, stroke: S, symbol: Q}, scales, _, context) => {
+  return initializer(options, (data, facets, channels, scales, _, context) => {
+    let {x: X, y: Y, z: Z, fill: F, stroke: S, symbol: Q} = channels;
     if (X === undefined) throw new Error("missing channel: x");
     if (Y === undefined) throw new Error("missing channel: y");
 
-    // Extract the scaled (or projected!) values for the x and y channels.
-    ({x: X, y: Y} = valueObject({x: X, y: Y}, scales, context));
-
-    // Coerce the x and y channels to numbers (so that null is properly
-    // treated as an undefined value rather than being coerced to zero).
-    X = coerceNumbers(X);
-    Y = coerceNumbers(Y);
+    // Get the (either scaled or projected) xy channels.
+    ({x: X, y: Y} = applyPosition(channels, scales, context));
 
     // Extract the values for channels that are eligible for grouping; not all
     // marks define a z channel, so compute one if it not already computed. If z
@@ -69,41 +64,48 @@ export function hexbin(outputs = {fill: "count"}, {binWidth, ...options} = {}) {
       const binFacet = [];
       for (const o of outputs) o.scope("facet", facet);
       for (const [f, I] of maybeGroup(facet, G)) {
-        for (const bin of hbin(I, X, Y, binWidth)) {
+        for (const {index: b, extent} of hbin(data, I, X, Y, binWidth)) {
           binFacet.push(++i);
-          BX.push(bin.x);
-          BY.push(bin.y);
-          if (Z) GZ.push(G === Z ? f : Z[bin[0]]);
-          if (F) GF.push(G === F ? f : F[bin[0]]);
-          if (S) GS.push(G === S ? f : S[bin[0]]);
-          if (Q) GQ.push(G === Q ? f : Q[bin[0]]);
-          for (const o of outputs) o.reduce(bin);
+          BX.push(extent.x);
+          BY.push(extent.y);
+          if (Z) GZ.push(G === Z ? f : Z[b[0]]);
+          if (F) GF.push(G === F ? f : F[b[0]]);
+          if (S) GS.push(G === S ? f : S[b[0]]);
+          if (Q) GQ.push(G === Q ? f : Q[b[0]]);
+          for (const o of outputs) o.reduce(b, extent);
         }
       }
       binFacets.push(binFacet);
     }
 
     // Construct the output channels, and populate the radius scale hint.
-    const channels = {
-      x: {value: BX},
-      y: {value: BY},
+    const sx = channels.x.scale;
+    const sy = channels.y.scale;
+    const binChannels = {
+      x: {value: BX, source: scales[sx] ? {value: map(BX, scales[sx].invert), scale: sx} : null},
+      y: {value: BY, source: scales[sy] ? {value: map(BY, scales[sy].invert), scale: sy} : null},
       ...(Z && {z: {value: GZ}}),
-      ...(F && {fill: {value: GF, scale: true}}),
-      ...(S && {stroke: {value: GS, scale: true}}),
-      ...(Q && {symbol: {value: GQ, scale: true}}),
+      ...(F && {fill: {value: GF, scale: "auto"}}),
+      ...(S && {stroke: {value: GS, scale: "auto"}}),
+      ...(Q && {symbol: {value: GQ, scale: "auto"}}),
       ...Object.fromEntries(
         outputs.map(({name, output}) => [
           name,
-          {scale: true, radius: name === "r" ? binWidth / 2 : undefined, value: output.transform()}
+          {
+            scale: "auto",
+            label: output.label,
+            radius: name === "r" ? binWidth / 2 : undefined,
+            value: output.transform()
+          }
         ])
       )
     };
 
-    return {data, facets: binFacets, channels};
+    return {data, facets: binFacets, channels: binChannels};
   });
 }
 
-function hbin(I, X, Y, dx) {
+function hbin(data, I, X, Y, dx) {
   const dy = dx * (1.5 / sqrt3);
   const bins = new Map();
   for (const i of I) {
@@ -124,11 +126,10 @@ function hbin(I, X, Y, dx) {
     const key = `${pi},${pj}`;
     let bin = bins.get(key);
     if (bin === undefined) {
-      bins.set(key, (bin = []));
-      bin.x = (pi + (pj & 1) / 2) * dx + ox;
-      bin.y = pj * dy + oy;
+      bin = {index: [], extent: {data, x: (pi + (pj & 1) / 2) * dx + ox, y: pj * dy + oy}};
+      bins.set(key, bin);
     }
-    bin.push(i);
+    bin.index.push(i);
   }
   return bins.values();
 }

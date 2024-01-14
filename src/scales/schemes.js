@@ -77,18 +77,40 @@ import {
   schemeYlOrRd
 } from "d3";
 
-const ordinalSchemes = new Map([
-  // categorical
+// TODO https://github.com/d3/d3-scale-chromatic/pull/51
+const schemeObservable10 = [
+  "#4269d0",
+  "#efb118",
+  "#ff725c",
+  "#6cc5b0",
+  "#3ca951",
+  "#ff8ab7",
+  "#a463f2",
+  "#97bbf5",
+  "#9c6b4e",
+  "#9498a0"
+];
+
+const categoricalSchemes = new Map([
   ["accent", schemeAccent],
   ["category10", schemeCategory10],
   ["dark2", schemeDark2],
+  ["observable10", schemeObservable10],
   ["paired", schemePaired],
   ["pastel1", schemePastel1],
   ["pastel2", schemePastel2],
   ["set1", schemeSet1],
   ["set2", schemeSet2],
   ["set3", schemeSet3],
-  ["tableau10", schemeTableau10],
+  ["tableau10", schemeTableau10]
+]);
+
+export function isCategoricalScheme(scheme) {
+  return scheme != null && categoricalSchemes.has(`${scheme}`.toLowerCase());
+}
+
+const ordinalSchemes = new Map([
+  ...categoricalSchemes,
 
   // diverging
   ["brbg", scheme11(schemeBrBG, interpolateBrBG)],
